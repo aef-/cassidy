@@ -7,6 +7,14 @@
 #
 # By Adrian Fraiha
 #
+# TODO:
+#  Test security.
+#  Textile support.
+#  Needs delete post and delete blog.
+#  Maybe new way to figure out next post ID.
+#  Fix known ERRs.
+#  User should not be able to generate a post of a another. 
+#  User should not be able to edit a post of another.
 
 #Authors of a Blog:
 # getent group <groupname>
@@ -49,33 +57,6 @@ get_page_extension() {
 get_num_of_posts() {
 	NUM_POSTS=`ls -1 $BLOG_PATH/posts | wc -l`
 }
-#ERR: No longer neccesary - gonna use groups and shit ya know?
-#	Precondition: Blog path must be set. Run get_blog_path.
-#	Input: Null
-#	Output: Prevents a user from continuing, exit 0.
-#authenticate_user() {
-#	sed -ne '1,/^authors/d;/name/d;/email/d;s/ //g;s/://g;p' $BLOG_PATH/*.conf |awk '
-#			/adrian/{print $0}
-#		' | `read $0`
-#	AUTHENTICATED=$(sed -ne '/authors/!d;s/authors: *//;p' $BLOG_PATH/*.conf |
-#	awk -v user=`whoami` '
-#	BEGIN{FS=",";X=0}
-#	{ 
-#		while ( $(X++) ) {
-#			if("blog"==$X) { 
-#				print 1;
-#				exit;
-#			}
-#		}
-#		print 0
-#	}
-#	')
-#
-# 	if [ $AUTHENTICATED -eq 0 ]; then
-#		echo "You don't got the RIGHTS to funk with this blong."
-#		exit 0
-#	fi
-#}
 
 usage() {
 	echo "
@@ -100,12 +81,8 @@ usage() {
 		edit	<blog>
 			Edits <blog>'s config file.
 
-		regen	<blog>
-			Regenerates every post. Use after editing <blog>.conf
-			Use with cushion.
-
-		authors <blog>
-
+		gen	<blog> <postID>
+			Generate HTML of post.
 "
 	exit 0
 }
@@ -199,9 +176,6 @@ case "$CMD" in
 	-p|--p|P|p|po|pos|post)
 		if [ $# -ge 3 ]; then
 			get_blog_path $2
-			# Stops here if user is not an author
-#			authenticate_user
-	
 			get_num_of_posts
 			CURR_POST=`expr $NUM_POSTS + 1`
 			{
@@ -218,7 +192,6 @@ case "$CMD" in
 #				echo "Post aborted."
 #				exit 1
 #			fi
-#	Should offer support not to regenerate.
 			echo "Post created to publish generate ID $CURR_POST."
 			exit 0
 		fi
@@ -296,7 +269,7 @@ case "$CMD" in
         POST_AUTHOR=`whoami`
         POST_FILE_NAME=`echo $POST_YML | sed "s/\.yml$/$PAGE_EXT/"`
 
-#ERR: Can't use backslashes in files. lol 
+#ERR: Can't use backslashes in files. hmm..
         echo $tpl  |	sed --posix "
 					/{SITE_NAME}/s\{SITE_NAME}\\${SITE_NAME}\g;
 					/{SITE_URL}/s\{SITE_URL}\\${SITE_URL}\g;
@@ -333,9 +306,7 @@ case "$CMD" in
       {
         echo $YML_NAME
         NOW=`date -u --rfc-3339=seconds`
-#       cat $BLOG_PATH/posts/$YML_NAME | sed -e "s/^updated: .*/updated: $NOW/" > $BLOG_PATH/posts/$YML_NAME
         sed -i "s/^updated: .*/updated: $NOW/" $BLOG_PATH/posts/$YML_NAME
- 
         vim $BLOG_PATH/posts/$YML_NAME
 			  echo "Post updated to publish generate ID $3." 
         exit 0
