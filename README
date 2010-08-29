@@ -1,0 +1,116 @@
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#  
+#  Cassidy v.pre
+#   - A Shell-based blogging system.
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+          TABLE OF CONTENTS
+---------------------------------------------------------------------
+I.    Overview
+
+II.   Installation
+
+III.  Getting started
+
+IV.   Configuring Templates
+
+V.    TODO
+
+VI.   Contributers/Contributing
+
+
+
+I.        OVERVIEW
+----------------------------------------------------------------------
+Cassidy is a blogging system written in Bourne shell/AWK/Sed. It uses
+the filesystem permissions for security. A person with root access 
+may create as many blogs as he likes and add/remove users from groups
+that have access to those blogs.
+
+All posts are stored on the filesystem in YAML. After creating a post 
+you have the option of publishing it. Publishing involves generating
+the HTML file from templates you've defined. Have a look at the rest
+of the README to get a sense at how it can be used.
+
+
+
+II.       INSTALLATION
+----------------------------------------------------------------------
+Cassidy is just a shell script, where you run it is up to you. It does
+require a file to be created:
+
+  # touch /etc/cassidy.conf
+
+You can change the default config location in the shell script.
+After that, you're all set. Run
+
+  $ cassidy -h
+
+for information on what you can do.
+
+
+
+III.      GETTING STARTED
+----------------------------------------------------------------------
+CREATING A BLOG:
+You must have root access in order to create a blog.
+Run 
+
+  # cassidy create <blog>
+
+What <blog> is has nothing to do with your actual site, it's just an
+identifier between Cassidy and you/your bloggers. So it's best to keep 
+it simple. Cassidy will ask you for some information that you can 
+always change.
+
+
+HELPFUL COMMANDS:
+  List authors of a blog:
+    getent group {groupname}
+
+  Add author to a blog:
+    useradd -G {group-name} {username}
+
+  Remove user:
+    usermod -G {groupname} {username}
+
+
+
+IV.       CONFIGURING TEMPLATES
+----------------------------------------------------------------------
+
+
+
+V.        TODO
+----------------------------------------------------------------------
+
+	v.Beta
+    Fix code formatting (tabs..)
+	  Test security (and fix permissions).
+	  Needs delete post and delete blog. (Can manually delete a post for now)
+	X Maybe new way to figure out next post ID.
+	  Fix known ERRs.
+	  User should not be able to generate a post of a another. 
+	  User should not be able to edit a post of another.
+	X Generate blog..
+	X Generate templates on creation.
+	  Textile support.
+  X Index
+    Write configuring templates doc.
+
+  v.1
+    Archive system.
+	  Option to auto generate after post/edit.
+    Update date gotten from stat mod
+    Should force user to change groups if group is not valid.
+    Script to upgrade from v.Beta to v.1.
+
+
+VI.        CONTRIBUTERS/CONTRIBUTING
+----------------------------------------------------------------------
+Cassidy is developed by aef.
+Originally developed on June 24, 2008 and continued August 26, 2010.
+
+To contribute visit http://github.com/aef-/cassidy.

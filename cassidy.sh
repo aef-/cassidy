@@ -1,41 +1,25 @@
 #!/bin/sh
-#	Cassidy 
-#	-  A blogging system.
-#  v.pre  (June 24 2008, August 26, 2010)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #	
-#	cassidy -h for commands.
+#  Cassidy v.pre (August 28,2010) 
+#   - A Shell-based blogging system.
+#  By aef 
 #
-# By Adrian Fraiha
-#
-# TODO:
-#  Test security.
-#  Textile support.
-#  Needs delete post and delete blog.
-#  Maybe new way to figure out next post ID.
-#  Fix known ERRs.
-#  User should not be able to generate a post of a another. 
-#  User should not be able to edit a post of another.
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-#Authors of a Blog:
-# getent group <groupname>
-# grep "^groupname" /etc/group
-
-#Add author to a blog:
-# useradd -G {group-name} {username}
-
-#Remove user
-# usermod -G {groupname} {username}
-
-# Edit this if you do not have root access.
 CAS_CONFIG=/etc/cassidy.conf
+EDITOR=${EDITOR:-vim}
 
 
 set -e
 set -u
 
-VERSION="\nCassidy v. Alpha \nhttp://dev.catch-colt.com/cassidy\nThis \
+
+VERSION="\nCassidy v.pre \nhttp://dev.catch-colt.com/cassidy\nThis \
 software is not copyrighted, do as you wish to it but if you use it, it'd be nice to link back to it!\n"
-EDITOR=${EDITOR:-vim}
+
+
+
 # FUNCTIONS
 
 #ERR: Maybe set inputs to blog name where neccesary? $2 arguement
@@ -57,6 +41,13 @@ get_page_extension() {
 get_num_of_posts() {
 	NUM_POSTS=`ls -1 $BLOG_PATH/posts | wc -l`
 }
+# Precondition: Blog path must be set. Run get_blog_path.
+# Input: Null
+# Output: The last post ID and the last post ID + 1.
+get_curr_post_id() {
+  LAST_POST_ID=`ls $BLOG_PATH/posts | sort -n  | tail -1  | sed -e "s/\(^[0-9]*\)_.*$/\1/"`
+  CURR_POST_ID=$[$LAST_POST_ID + 1]
+}
 
 usage() {
 	echo "
@@ -64,7 +55,7 @@ usage() {
 	
 	Commands:
 		create	<blog>
-			Creates a new <blog> with name <blog>.
+			Creates a new <blog> with name <blog>. (Keep it simple)
 		
 		post	<blog>	<url_title>
 			Creates a new post to <blog>. <url_title>.ext
@@ -83,8 +74,111 @@ usage() {
 
 		gen	<blog> <postID>
 			Generate HTML of post.
+		
+		gen	<blog> 
+			Generates every post in <blog>.
 "
 	exit 0
+}
+
+# Precondition: Blog path must be set. Run get_blog_path.
+# Input: Blog name.
+# Output: Generates index.ext HTML.
+generate_index_html() {
+      INDEX_TPL=`cat $BLOG_PATH/templates/index.tpl`
+      LAYOUT_TPL=`cat $BLOG_PATH/templates/layout.tpl`
+      INDEX_TPL=`echo $INDEX_TPL`
+                                            # Paper boy jumps are annoying!
+      INDEX_TPL=`echo $LAYOUT_TPL | sed --posix "s\{CONTENT}\\\\${INDEX_TPL}\g;"`
+       
+      SITE_NAME=`awk 'BEGIN {FS=": ";}/site-name/{ print $2 }' $BLOG_PATH/$1.conf`
+      SITE_URL=`awk 'BEGIN {FS=": ";}/site-url/{ print $2 }' $BLOG_PATH/$1.conf`
+      PAGE_EXT=`awk 'BEGIN {FS=": ";}/page-ext/{ print $2 }' $BLOG_PATH/$1.conf`
+
+      #List of published titles to post, sorted by ID.
+#ERR: Not sure about this.. Any insight from gurus?
+      LIST_POSTS=$({
+        for i in `ls $BLOG_PATH/posts | grep ^[0-9]*_ | sort -n | tac`
+          do
+          URL=`echo $i | sed "s/\.yml/${PAGE_EXT}/"` 
+          echo `awk 'BEGIN {FS="^title: ";}/title/{ print "<li><a href=\"/posts/'$URL'\">"$2"</a></li>" }' $BLOG_PATH/posts/$i` 
+        done
+      })
+      LIST_POSTS=`echo $LIST_POSTS`
+        echo -e $INDEX_TPL"\n" |	sed --posix "
+					/{SITE_NAME}/s\{SITE_NAME}\\~${SITE_NAME}\g;
+					/{SITE_URL}/s\{SITE_URL}\\${SITE_URL}\g;
+					/{LIST_POSTS}/s\{LIST_POSTS}\\${LIST_POSTS}\g;
+					" > $BLOG_PATH/htdocs/index.htm
+      echo "Generated new index.htm." 
+}
+
+#	Precondition: Blog path must be set. Run get_blog_path.
+#	Input:	Post #ID, blog name
+#	Output: Generates HTML of post from post yaml.	
+generate_post_html() {
+
+      POST_ID=$1	
+
+#ERR: Maybe put this in a function. haHa! we shall seE!
+#ERR: There's gotta be a better way to prep for sed than to echo the contents. 
+      POST_TPL=`cat $BLOG_PATH/templates/post.tpl`
+      POST_TPL=`echo $POST_TPL`
+      LAYOUT_TPL=`cat $BLOG_PATH/templates/layout.tpl`
+      
+      POST_TPL=`echo $LAYOUT_TPL | sed --posix "s\{CONTENT}\\\\${POST_TPL}\g;"`
+
+			# Set variables.
+			# $SITE_NAME
+			# $SITE_URL
+			# $POST_PERM_LINK
+			# $POST_CREATED
+			# $POST_UPDATED
+			# $POST_TITLE
+			# $POST_AUTHOR
+			# $POST_CONTENT
+
+		  POST_YML=`ls $BLOG_PATH/posts/ | grep  ^$POST_ID\_` &&\
+      {
+        SITE_NAME=`awk 'BEGIN {FS=": ";}/site-name/{ print $2 }' $BLOG_PATH/$2.conf`
+        SITE_URL=`awk 'BEGIN {FS=": ";}/site-url/{ print $2 }' $BLOG_PATH/$2.conf`
+        DATE_FORMAT=`awk 'BEGIN {FS=": ";}/date-format/{ print $2 }' $BLOG_PATH/$2.conf`
+        PAGE_EXT=`awk 'BEGIN {FS=": ";}/page-ext/{ print $2 }' $BLOG_PATH/$2.conf`
+        
+        POST_TITLE=`awk 'BEGIN {FS="^title: ";}/title/{ print $2 }' $BLOG_PATH/posts/$POST_YML`
+        POST_CREATED=`awk 'BEGIN {FS="^posted: ";}/posted/{ print $2 }' $BLOG_PATH/posts/$POST_YML`
+        POST_UPDATED=`awk 'BEGIN {FS="^updated: ";}/updated/{ print $2 }' $BLOG_PATH/posts/$POST_YML`
+        POST_CONTENT=`awk 'BEGIN {FS="^content: ";}/content/{ f=1 }f' $BLOG_PATH/posts/$POST_YML`
+        POST_CONTENT=`echo $POST_CONTENT | sed --posix "s/content: //"`
+
+				#Prepare DATE!
+				POST_CREATED=`date "+$DATE_FORMAT" --date="$POST_CREATED"`
+#for V1: 
+# POST_UPDATED=`stat -c %y $BLOG_PATH/posts/$POST_YML`
+				if [ "$POST_UPDATED" != "Never" ]; then
+					POST_UPDATED=`date "+$DATE_FORMAT" --date="$POST_UPDATED"`
+				fi
+         
+        POST_AUTHOR=`stat -c %U $BLOG_PATH/posts/$POST_YML`
+        POST_FILE_NAME=`echo $POST_YML | sed "s/\.yml$/$PAGE_EXT/"`
+
+#ERR: Can't use backslashes in files. hmm..
+#ERR: Not exactly necessary to have line search since all the templates have been fudged into one line.
+        echo $POST_TPL  |	sed --posix -e "
+					/{SITE_NAME}/s\{SITE_NAME}\\${SITE_NAME}\g;
+					/{SITE_URL}/s\{SITE_URL}\\${SITE_URL}\g;
+					/{POST_CONTENT}/s\{POST_CONTENT}\\${POST_CONTENT}\g;
+					/{POST_ID}/s\{POST_ID}\\${POST_ID}\g;
+          /{POST_CREATED}/s\{POST_CREATED}\\${POST_CREATED}\g;
+					/{POST_UPDATED}/s\{POST_UPDATED}\\${POST_UPDATED}\g;
+					/{POST_TITLE}/s\{POST_TITLE}\\${POST_TITLE}\g;
+					/{POST_AUTHOR}/s\{POST_AUTHOR}\\${POST_AUTHOR}\g;
+					" > $BLOG_PATH/htdocs/posts/$POST_FILE_NAME
+        chown $POST_AUTHOR $BLOG_PATH/htdocs/posts/$POST_FILE_NAME
+        echo $SITE_URL/$POST_FILE_NAME
+      } || {
+        echo 1
+      } 
 }
 
 #In case $1 not set.
@@ -115,9 +209,9 @@ case "$CMD" in
 		echo -n "User (login name) blog is for (default is `whoami`): "; read USERNAME
 		echo ""
 		USERNAME=${USERNAME:-`whoami`}	
-		echo -n "Group blog is for (default is www): "; read GROUP
+		echo -n "Group blog is for (default is $BLOG_NAME): "; read GROUP
 		echo""
-		GROUP=${GROUP:-www}
+		GROUP=${GROUP:-$BLOG_NAME}
 		echo -n "Path to blog: (default is `pwd`/$BLOG_NAME): "; read BLOG_PATH
 		echo ""
 		BLOG_PATH=${BLOG_PATH:-`pwd`}
@@ -143,7 +237,7 @@ case "$CMD" in
 		sudo mkdir -p $BLOG_PATH/$BLOG_NAME
 		sudo chown $USERNAME $BLOG_PATH/$BLOG_NAME 
 		cd $BLOG_PATH/$BLOG_NAME
-		mkdir -p htdocs/styles posts templates
+		mkdir -p htdocs/styles htdocs/posts posts templates
 		grep -q $GROUP /etc/group ||\
       {
         echo -e "Group $GROUP does not exist, creating..."
@@ -156,7 +250,34 @@ case "$CMD" in
       }
     sudo chown :$GROUP posts htdocs
 		chmod 775 posts htdocs
-		touch $BLOG_NAME.conf
+    #Template:
+		touch templates/layout.tpl
+      {
+        echo '<html>'
+        echo '  <head>'
+        echo '    <title>{SITE_NAME}</title>'
+        echo '  </head>'
+        echo '  <body>'
+        echo '    {CONTENT}'
+        echo '  </body>'
+        echo '</html>'
+      } > templates/layout.tpl
+
+    touch templates/post.tpl
+      {
+        echo '<h1>{POST_TITLE}</h1>'
+        echo '{POST_CONTENT}'
+        echo 'Posted by {POST_AUTHOR} on {POST_CREATED}'
+      } > templates/post.tpl
+
+    touch templates/index.tpl
+      {
+        echo '<ul>'
+        echo '{LIST_POSTS}'
+        echo '</ul>'
+      } > templates/index.tpl
+
+    touch $BLOG_NAME.conf
 	   {
 			echo "# $BLOG_NAME.conf: A cassidy blog config file." 
 			echo "site-name: $SITE_NAME"
@@ -164,20 +285,20 @@ case "$CMD" in
 			echo "page-ext: $PAGE_EXT"
 			echo "date-format: %m/%d/%y %H:%M:%S"
 			echo "authors: "
-			echo  "  $USERNAME:"
-			echo  "    name: $NAME"
-			echo  "    email: $EMAIL"
+			echo "  $USERNAME:"
+			echo "    name: $NAME"
+			echo "    email: $EMAIL"
 		} > $BLOG_NAME.conf
 
 		$EDITOR $BLOG_NAME.conf
-		echo "Your new blog has been created. Type cassidy -h for options on what to do"
+		echo "Your new blog has been created. Type cassidy -h for options on what to do."
 	;;
 
 	-p|--p|P|p|po|pos|post)
 		if [ $# -ge 3 ]; then
 			get_blog_path $2
-			get_num_of_posts
-			CURR_POST=`expr $NUM_POSTS + 1`
+      get_curr_post_id
+			CURR_POST=$CURR_POST_ID
 			{
 				echo "title: Title"
 				echo "created: `date -u --rfc-3339=seconds`"
@@ -219,7 +340,7 @@ case "$CMD" in
         awk '
 				BEGIN {FS="[a-zA-Z]:"; ORS="";}
         /title/{print "\t"++i"\t"$2"\n"}
-			  ' $BLOG_PATH/posts/*
+			  ' $BLOG_PATH/posts/*.yml
       } ||\
       {
         echo "   Nothing has been written!"
@@ -233,62 +354,46 @@ case "$CMD" in
 		if [ $# -eq 3 ]; then
 			get_blog_path $2
 			get_page_extension
-      POST_ID=$3
-			# Do post first.
-		 	tpl=`cat $BLOG_PATH/templates/header.tpl $BLOG_PATH/templates/entry.tpl $BLOG_PATH/templates/footer.tpl`
-			# Set variables.
-			# $SITE_NAME
-			# $SITE_URL
-			# $POST_PERM_LINK
-			# $POST_CREATED
-			# $POST_UPDATED
-			# $POST_TITLE
-			# $POST_AUTHOR
-			# $POST_CONTENT
-
-		  POST_YML=`ls $BLOG_PATH/posts/ | grep  ^$POST_ID\_` &&\
-      {
-        SITE_NAME=`awk 'BEGIN {FS=": ";}/site-name/{ print $2 }' $BLOG_PATH/$2.conf`
-        SITE_URL=`awk 'BEGIN {FS=": ";}/site-url/{ print $2 }' $BLOG_PATH/$2.conf`
-        DATE_FORMAT=`awk 'BEGIN {FS=": ";}/date-format/{ print $2 }' $BLOG_PATH/$2.conf`
-        PAGE_EXT=`awk 'BEGIN {FS=": ";}/page-ext/{ print $2 }' $BLOG_PATH/$2.conf`
-        
-        POST_TITLE=` awk 'BEGIN {FS="^title: ";}/title/{ print $2 }' $BLOG_PATH/posts/$POST_YML`
-        POST_CREATED=` awk 'BEGIN {FS="^posted: ";}/posted/{ print $2 }' $BLOG_PATH/posts/$POST_YML`
-        POST_UPDATED=`awk 'BEGIN {FS="^updated: ";}/updated/{ print $2 }' $BLOG_PATH/posts/$POST_YML`
-        POST_CONTENT=`awk 'BEGIN {FS="^content: ";}/content/{ f=1 }f' $BLOG_PATH/posts/$POST_YML`
-        POST_CONTENT=`echo $POST_CONTENT | sed --posix "s/content: //"`
-
-				#Prepare DATE!
-				POST_CREATED=`date "+$DATE_FORMAT" --date="$POST_CREATED"`
-				
-				if [ "$POST_UPDATED" != "Never" ]; then
-					POST_UPDATED=`date "+$DATE_FORMAT" --date="$POST_UPDATED"`
-				fi
-         
-        POST_AUTHOR=`whoami`
-        POST_FILE_NAME=`echo $POST_YML | sed "s/\.yml$/$PAGE_EXT/"`
-
-#ERR: Can't use backslashes in files. hmm..
-        echo $tpl  |	sed --posix "
-					/{SITE_NAME}/s\{SITE_NAME}\\${SITE_NAME}\g;
-					/{SITE_URL}/s\{SITE_URL}\\${SITE_URL}\g;
-					/{POST_CONTENT}/s\{POST_CONTENT}\\${POST_CONTENT}\g;
-					/{POST_ID}/s\{POST_ID}\\${POST_ID}\g;
-          /{POST_CREATED}/s\{POST_CREATED}\\${POST_CREATED}\g;
-					/{POST_UPDATED}/s\{POST_UPDATED}\\${POST_UPDATED}\g;
-					/{POST_TITLE}/s\{POST_TITLE}\\${POST_TITLE}\g;
-					/{POST_AUTHOR}/s\{POST_AUTHOR}\\${POST_AUTHOR}\g;
-					" > $BLOG_PATH/htdocs/$POST_FILE_NAME
-      } || {
-        echo 'There was an error in generating your post, it may have not been found or there may be a "\" in one of your files!'
-        exit 0
-      }
-      echo "Post has been published, check it out: $SITE_URL/$POST_FILE_NAME !"
+      POST_URL=`generate_post_html $3 $2`
+      if [ $POST_URL == 1 ]; then
+        echo "Post #$3 of $2 could not be generated."
+      else
+        echo "Post has been published, check it out: $POST_URL !"
+      fi
+      generate_index_html $2
 			exit 0
 		fi
+    if [ $# -eq 2 ]; then
+      get_blog_path $2
+      get_page_extension
+
+      get_num_of_posts
+
+      echo 'Generating blog posts, will display only errors.'
+      for i in `ls $BLOG_PATH/posts | sort -n  | sed -e "s/\(^[0-9]*\)_.*$\1/"`
+          do
+          ERR=`generate_post_html $i $2`
+          if [ $ERR == 1 ]; then
+            echo "Post #$i of $2 could not be generated."
+          fi
+      done
+      generate_index_html $2
+      echo 'Finished.'
+      exit 0
+    fi
 		usage
 	;;
+  -d|--d|D|d|de|del|dele|delet|delete)
+    #Delete blog
+		if [ $# -eq 2 ]; then
+      echo "Not yet implemented. To remove delete folder and remove record from $CAS_CONFIG"
+    fi
+    #Delete post    
+		if [ $# -eq 3 ]; then
+      echo "Not yet implemented. To delete a post remove it from /posts and /htdocs" 
+    fi
+    usage
+  ;;
 	-e|--e|E|e|ed|edi|edit)
     #Edit Blog
 		if [ $# -eq 2 ]; then
@@ -299,12 +404,12 @@ case "$CMD" in
       fi
 		fi
 
+    #Edit Post
 		if [ $# -eq 3 ]; then
 			get_blog_path $2
 		  	
 		  YML_NAME=`ls $BLOG_PATH/posts/ | grep  ^$3\_` &&\
       {
-        echo $YML_NAME
         NOW=`date -u --rfc-3339=seconds`
         sed -i "s/^updated: .*/updated: $NOW/" $BLOG_PATH/posts/$YML_NAME
         vim $BLOG_PATH/posts/$YML_NAME
@@ -316,6 +421,11 @@ case "$CMD" in
       exit 0
 		fi
 		usage
+  ;;
+  -t) # Test Command, used for debugging. Should always be empty, except for when it's not.
+    set -x
+    get_blog_path $2
+    echo `generate_post_html 1 $2`
   ;;
 	-v|--v|V|v|ve|ver|vers|versi|versio|version)
 		echo -e $VERSION
